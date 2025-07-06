@@ -1,6 +1,6 @@
 
 #%%
-from review_dataset import NewsDataset
+from review_classifier.src.review_classifier.data.review_dataset import NewsDataset
 import pandas as pd
 
 #%%

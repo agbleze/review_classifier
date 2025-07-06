@@ -1,28 +1,3 @@
-
-#%%
-import os
-from argparse import Namespace
-from collections import Counter
-import json
-import re
-import string
-
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm_notebook
-import numpy as np
-from sklearn.model_selection import train_test_split
-#from ReviewVectorizer import ReviewVectorizer
-from typing import Dict, List, Optional
-
-
-
-#%% Vocabulary
 class Vocabulary(object):
     """Class to process text and extract vocabulary for mapping"""
 
@@ -103,11 +78,3 @@ class Vocabulary(object):
 
     def __len__(self):
         return len(self._token_to_idx)
-
-
-
-
-
-
-
-

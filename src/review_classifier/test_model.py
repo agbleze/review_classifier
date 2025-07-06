@@ -1,21 +1,21 @@
 
 #%%
-from classifier import NewsClassifier
-from review_dataset import NewsDataset
+from review_classifier.src.review_classifier.model.classifier import NewsClassifier
+from review_classifier.src.review_classifier.data.review_dataset import NewsDataset
 from torch.nn import Module
 import torch
 import json
-from helpers import (args, load_glove_from_file, 
+from review_classifier.src.review_classifier.utils.helpers import (args, load_glove_from_file, 
                      set_seed_everywhere, handle_dirs,
                      #make_embedding_matrix, 
                      compute_accuracy, make_train_state,
                      generate_batches, update_train_state, 
                      predict_category, preprocess_text
                      )
-from vectorizer import NewsVectorizer
+from review_classifier.src.review_classifier.preprocess.vectorizer import NewsVectorizer
 import re
 import pandas as pd
-from embedding_matrix import EmbeddingMatrixMaker
+from review_classifier.src.review_classifier.utils.embedding_matrix import EmbeddingMatrixMaker
 
 
 # %%

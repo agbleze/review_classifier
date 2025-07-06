@@ -1,49 +1,37 @@
-#%%
 import os
-from argparse import Namespace
-from collections import Counter
-import json
-import re
-import string
-
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm_notebook
 import numpy as np
 from sklearn.model_selection import train_test_split
-#from ReviewVectorizer import ReviewVectorizer
-from typing import Dict, List, Optional
+import json
+from ..preprocess.vectorizer import ReviewVectorizer
+from typing import Dict
 
-from vectorizer import NewsVectorizer
 
-#%%
-class NewsDataset(Dataset):
-    def __init__(self, news_df: pd.DataFrame, vectorizer):
+class ReviewDataset(Dataset):
+    def __init__(self, review_df: pd.DataFrame, vectorizer):
         """
         Args:
-            news_df (pandas.DataFrame): the dataset
+            review_df (pandas.DataFrame): the dataset
             vectorizer (NewsVectorizer): vectorizer instatiated from dataset
         """
-        self.news_df = news_df
+        self.review_df = review_df
         self._vectorizer = vectorizer
 
         # +1 if only using begin_seq, +2 if using both begin and end seq tokens
         measure_len = lambda context: len(context.split(" "))
-        self._max_seq_length = max(map(measure_len, news_df['reviews.text'])) + 2
+        self._max_seq_length = max(map(measure_len, review_df['reviews.text'])) + 2
         
 
-        self.train_df = self.news_df[self.news_df.split=='train']
+        self.train_df = self.review_df[self.review_df.split=='train']
         self.train_size = len(self.train_df)
 
-        self.val_df = self.news_df[self.news_df.split=='val']
+        self.val_df = self.review_df[self.review_df.split=='val']
         self.validation_size = len(self.val_df)
 
-        self.test_df = self.news_df[self.news_df.split=='test']
+        self.test_df = self.review_df[self.review_df.split=='test']
         self.test_size = len(self.test_df)
 
         self._lookup_dict = {'train': (self.train_df, self.train_size),
@@ -53,7 +41,7 @@ class NewsDataset(Dataset):
         self.set_split('train')
 
         # Class weights
-        class_counts = news_df['reviews.doRecommend'].value_counts().to_dict()
+        class_counts = review_df['reviews.doRecommend'].value_counts().to_dict()
         def sort_key(item):
             return self._vectorizer.category_vocab.lookup_token(item[0])
         sorted_counts = sorted(class_counts.items(), key=sort_key)
@@ -75,17 +63,17 @@ class NewsDataset(Dataset):
         train_set, evaluate_set = train_test_split(cls.dataset, train_size=0.7, random_state=123)
         
         validate_set, test_set = train_test_split(evaluate_set, test_size=0.5, random_state=123)
-        
         train_set['split'] = "train"
         validate_set['split'] = 'val'
         test_set['split'] = 'test'
-        
         cls.segmented_data = pd.concat([train_set, validate_set, test_set])
         
         return cls.segmented_data
     
     @classmethod
-    def get_datapath(cls, data_foldername: str = "data", data_filename: str = "product_reviews.csv"):
+    def get_datapath(cls, data_foldername: str = "data", 
+                     data_filename: str = "product_reviews.csv"
+                     ):
         dirpath = os.getcwd()
         filepath = f"{data_foldername}/{data_filename}"
         datapath = dirpath + "/" + filepath
@@ -93,32 +81,32 @@ class NewsDataset(Dataset):
         
         
     @classmethod
-    def load_dataset_and_make_vectorizer(cls, news_csv):
-        """Load dataset and make a new vectorizer from scratch
+    def load_dataset_and_make_vectorizer(cls, review_csv):
+        """Load dataset and make a review vectorizer from scratch
         
         Args:
-            surname_csv (str): location of the dataset
+            review_csv (str): location of the dataset
         Returns:
-            an instance of SurnameDataset
+            an instance of ReviewDataset
         """
-        news_df = pd.read_csv(news_csv)
-        train_news_df = news_df[news_df.split=='train']
-        return cls(news_df, NewsVectorizer.from_dataframe(train_news_df))
+        review_df = pd.read_csv(review_csv)
+        train_review_df = review_df[review_df.split=='train']
+        return cls(review_df, ReviewVectorizer.from_dataframe(train_review_df))
 
     @classmethod
-    def load_dataset_and_load_vectorizer(cls, news_csv, vectorizer_filepath):
+    def load_dataset_and_load_vectorizer(cls, review_csv, vectorizer_filepath):
         """Load dataset and the corresponding vectorizer. 
-        Used in the case in the vectorizer has been cached for re-use
+             Used in the case in the vectorizer has been cached for re-use
         
         Args:
-            surname_csv (str): location of the dataset
+            review_csv (str): location of the dataset
             vectorizer_filepath (str): location of the saved vectorizer
         Returns:
-            an instance of SurnameDataset
+            an instance of ReviewDataset
         """
-        news_df = pd.read_csv(news_csv)
+        review_df = pd.read_csv(review_csv)
         vectorizer = cls.load_vectorizer_only(vectorizer_filepath)
-        return cls(news_df, vectorizer)
+        return cls(review_df, vectorizer)
 
     @staticmethod
     def load_vectorizer_only(vectorizer_filepath):
@@ -127,10 +115,10 @@ class NewsDataset(Dataset):
         Args:
             vectorizer_filepath (str): the location of the serialized vectorizer
         Returns:
-            an instance of SurnameVectorizer
+            an instance of NewsVectorizer
         """
         with open(vectorizer_filepath) as fp:
-            return NewsVectorizer.from_serializable(json.load(fp))
+            return ReviewVectorizer.from_serializable(json.load(fp))
 
     def save_vectorizer(self, vectorizer_filepath):
         """saves the vectorizer to disk using json
@@ -163,14 +151,15 @@ class NewsDataset(Dataset):
         """
         row = self._target_df.iloc[index]
 
-        title_vector = \
+        review_vector = \
             self._vectorizer.vectorize(row['reviews.text'], self._max_seq_length)
 
         category_index = \
             self._vectorizer.category_vocab.lookup_token(row['reviews.doRecommend'])
 
-        return {'x_data': title_vector,
-                'y_target': category_index}
+        return {'x_data': review_vector,
+                'y_target': category_index
+                }
 
     def get_num_batches(self, batch_size):
         """Given a batch size, return the number of batches in the dataset
@@ -198,8 +187,3 @@ def generate_batches(dataset, batch_size, shuffle=True,
         for name, tensor in data_dict.items():
             out_data_dict[name] = data_dict[name].to(device)
         yield out_data_dict
-        
-        
-        
-        
-        

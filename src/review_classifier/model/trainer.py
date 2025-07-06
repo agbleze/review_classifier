@@ -20,15 +20,15 @@ from sklearn.model_selection import train_test_split
 #from ReviewVectorizer import ReviewVectorizer
 from typing import Dict, List, Optional
 
-from helpers import (args, load_glove_from_file, 
+from review_classifier.src.review_classifier.utils.helpers import (args, load_glove_from_file, 
                      set_seed_everywhere, handle_dirs,
                      #make_embedding_matrix, 
                      compute_accuracy, make_train_state,
                      generate_batches, update_train_state)
-from review_dataset import NewsDataset
-from classifier import NewsClassifier
-from vectorizer import NewsVectorizer
-from embedding_matrix import EmbeddingMatrixMaker
+from review_classifier.src.review_classifier.data.review_dataset import ReviewDataset
+from review_classifier.src.review_classifier.model.classifier import ReviewClassifier
+from review_classifier.src.review_classifier.preprocess.vectorizer import ReviewVectorizer
+from review_classifier.src.review_classifier.utils.embedding_matrix import EmbeddingMatrixMaker
 
 #%%
 
@@ -62,12 +62,12 @@ args.use_glove = True
 
 if args.reload_from_files:
     # training from a checkpoint
-    dataset = NewsDataset.load_dataset_and_load_vectorizer(args.data_csv,
+    dataset = ReviewDataset.load_dataset_and_load_vectorizer(args.data_csv,
                                                            args.vectorizer_file
                                                            )
 else:
     # create dataset and vectorizer
-    dataset = NewsDataset.load_dataset_and_make_vectorizer(args.data_csv)
+    dataset = ReviewDataset.load_dataset_and_make_vectorizer(args.data_csv)
     dataset.save_vectorizer(args.vectorizer_file)
 vectorizer = dataset.get_vectorizer()
 
@@ -88,7 +88,7 @@ else:
     
 
 #%%
-classifier = NewsClassifier(embedding_size=args.embedding_size,
+classifier = ReviewClassifier(embedding_size=args.embedding_size,
                             num_embeddings=len(vectorizer.title_vocab),
                             num_channels=args.num_channels,
                             hidden_dim=args.hidden_dim,

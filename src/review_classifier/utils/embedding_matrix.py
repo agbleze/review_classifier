@@ -51,8 +51,7 @@ class EmbeddingMatrixMaker(object):
                 self.final_embeddings[i, :] = embedding_i
                 
         return self.final_embeddings
-    
-    
+       
     def save_embedding(self, filename: str = 'embeddings'):
         """save the embedding matrix to a numpy file
         
@@ -61,8 +60,7 @@ class EmbeddingMatrixMaker(object):
         
         """
         np.save(filename, self.final_embeddings)
-        
-        
+                
     def load_embedding(self, filename: str = 'embeddings.npy'):
         """load the embedding matrix from a numpy file
         
@@ -74,10 +72,3 @@ class EmbeddingMatrixMaker(object):
         
         """
         return np.load(filename)
-         
- 
-
-
-
-
-

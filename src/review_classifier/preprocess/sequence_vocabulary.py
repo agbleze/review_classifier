@@ -1,27 +1,4 @@
-#%%
-import os
-from argparse import Namespace
-from collections import Counter
-import json
-import re
-import string
-
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm_notebook
-import numpy as np
-from sklearn.model_selection import train_test_split
-#from ReviewVectorizer import ReviewVectorizer
-from typing import Dict, List, Optional
-
-from vocabulary import Vocabulary
-
-
+from ..preprocess.vocabulary import Vocabulary
 
 
 class SequenceVocabulary(Vocabulary):
@@ -55,6 +32,3 @@ class SequenceVocabulary(Vocabulary):
             return self._token_to_idx.get(token, self.unk_index)
         else:
             return self._token_to_idx[token]
-        
-
-
