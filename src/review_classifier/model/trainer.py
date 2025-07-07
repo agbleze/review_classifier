@@ -1,37 +1,25 @@
-
-#%%
-import os
-from argparse import Namespace
-from collections import Counter
-import json
-import re
-import string
-
-import numpy as np
-import pandas as pd
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm_notebook
-import numpy as np
-from sklearn.model_selection import train_test_split
-#from ReviewVectorizer import ReviewVectorizer
-from typing import Dict, List, Optional
+import argparse
 
-from review_classifier.src.review_classifier.utils.helpers import (args, load_glove_from_file, 
-                     set_seed_everywhere, handle_dirs,
-                     #make_embedding_matrix, 
-                     compute_accuracy, make_train_state,
-                     generate_batches, update_train_state)
-from review_classifier.src.review_classifier.data.review_dataset import ReviewDataset
-from review_classifier.src.review_classifier.model.classifier import ReviewClassifier
-from review_classifier.src.review_classifier.preprocess.vectorizer import ReviewVectorizer
-from review_classifier.src.review_classifier.utils.embedding_matrix import EmbeddingMatrixMaker
-
+from review_classifier.utils.helpers import (args, load_glove_from_file, 
+                                            set_seed_everywhere, handle_dirs,
+                                            #make_embedding_matrix, 
+                                            compute_accuracy, make_train_state,
+                                            generate_batches, update_train_state
+                                            )
+from review_classifier.data.review_dataset import ReviewDataset
+from review_classifier.model.classifier import ReviewClassifier
+from review_classifier.preprocess.vectorizer import ReviewVectorizer
+from review_classifier.utils.embedding_matrix import EmbeddingMatrixMaker
+from review_classifier.utils.helpers import predict_category
 #%%
-
+parser = argparse.ArgumentParser(description="Train a CNN for product reviews classification")
+parser.add_argument('--data_csv', type=str, default='data_splitted/review_df_split2.csv',
+                    help='Path to the CSV file containing the reviews dataset')
+parser.add_argument('--vectorizer_file', type=str, default='model_store/vectorizer.json',
 if args.expand_filepaths_to_save_dir:
     args.vectorizer_file = os.path.join(args.save_dir,
                                         args.vectorizer_file)
@@ -274,26 +262,26 @@ def preprocess_text(text):
 
 
 #%%
-def predict_category(title, classifier, vectorizer, max_length):
-    """Predicts a news category for a new title
+# def predict_category(title, classifier, vectorizer, max_length):
+#     """Predicts a news category for a new title
     
-    Args:
-        title (str): a raw title string
-        classifier (NewsVectorizer): an instanve of the trained classifier
-        vectorizer (NewsVectorizer): the corresponding vectorizer
-        max_length (int): the max sequence length
-            CNN are sensitive to the input data tensor size, 
-            This ensures to keep it the same size as the training data
-    """
-    title = preprocess_text(title)
-    vectorized_title = torch.tensor(vectorizer.vectorize(title, vector_length=max_length))
-    result = classifier(vectorized_title.unsqueeze(0), apply_softmax=True)
-    probability_values, indices = result.max(dim=1)
-    predicted_category = vectorizer.category_vocab.lookup_index(indices.item())
+#     Args:
+#         title (str): a raw title string
+#         classifier (NewsVectorizer): an instanve of the trained classifier
+#         vectorizer (NewsVectorizer): the corresponding vectorizer
+#         max_length (int): the max sequence length
+#             CNN are sensitive to the input data tensor size, 
+#             This ensures to keep it the same size as the training data
+#     """
+#     title = preprocess_text(title)
+#     vectorized_title = torch.tensor(vectorizer.vectorize(title, vector_length=max_length))
+#     result = classifier(vectorized_title.unsqueeze(0), apply_softmax=True)
+#     probability_values, indices = result.max(dim=1)
+#     predicted_category = vectorizer.category_vocab.lookup_index(indices.item())
     
-    return {'category': predicted_category,
-            'probability': probability_values.item()
-            }
+#     return {'category': predicted_category,
+#             'probability': probability_values.item()
+#             }
 
 
 #%%
@@ -310,17 +298,22 @@ val_samples = get_samples()
 #title = input("Enter a news title to classify: ")
 classifier = classifier.to("cpu")
 
-for truth, sample_group in val_samples.items():
-    print(f"True Category: {truth}")
-    print("="*30)
-    for sample in sample_group:
-        prediction = predict_category(sample, classifier, 
-                                      vectorizer, dataset._max_seq_length + 1)
-        print("Prediction: {} (p={:0.2f})".format(prediction['category'],
-                                                  prediction['probability']))
-        print("\t + Sample: {}".format(sample))
-    print("-"*30 + "\n")
- 
+def model_diagnostics(model, data: dict, vectorizer: ReviewVectorizer, 
+                      max_seq_length: int = dataset._max_seq_length + 1
+                      ) -> None:
+    for truth, sample_group in data.items():
+        print(f"Groundtruth: {truth}")
+        print("="*30)
+        for sample in sample_group:
+            prediction = predict_category(sample, model, 
+                                            vectorizer, 
+                                            max_seq_length
+                                        )
+            print("Prediction: {} (p={:0.2f})".format(prediction['category'],
+                                                    prediction['probability']))
+            print("\t + Sample: {}".format(sample))
+        print("-"*30 + "\n")
+    
 
 
 #%%
