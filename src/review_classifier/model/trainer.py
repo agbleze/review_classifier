@@ -101,114 +101,162 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
 
 train_state = make_train_state(args)
 
-epoch_bar = tqdm_notebook(desc='training routine', 
-                          total=args.num_epochs,
-                          position=0)
+# epoch_bar = tqdm_notebook(desc='training routine', 
+#                           total=args.num_epochs,
+#                           position=0)
 
 dataset.set_split('train')
-train_bar = tqdm_notebook(desc='split=train',
-                          total=dataset.get_num_batches(args.batch_size), 
-                          position=1, 
-                          leave=True)
+# train_bar = tqdm_notebook(desc='split=train',
+#                           total=dataset.get_num_batches(args.batch_size), 
+#                           position=1, 
+#                           leave=True
+#                           )
 dataset.set_split('val')
-val_bar = tqdm_notebook(desc='split=val',
-                        total=dataset.get_num_batches(args.batch_size), 
-                        position=1, 
-                        leave=True)
+# val_bar = tqdm_notebook(desc='split=val',
+#                         total=dataset.get_num_batches(args.batch_size), 
+#                         position=1, 
+#                         leave=True)
 
-try:
-    for epoch_index in range(args.num_epochs):
-        train_state['epoch_index'] = epoch_index
+def train(model, num_epochs: int,
+          loss_func, train_state: dict, dataset, optimizer,
+          scheduler, generate_batches_func=generate_batches,
+          update_train_state_func=update_train_state
+          evaluate_func=compute_accuracy, batch_size=32, device='cpu',
+          early_stopping_criteria=5
+          ):
+    train_bar = tqdm_notebook(desc='split=train',
+                          total=dataset.get_num_batches(batch_size), 
+                          position=1, 
+                          leave=True
+                          )
+    val_bar = tqdm_notebook(desc='split=val',
+                            total=dataset.get_num_batches(batch_size), 
+                            position=1, 
+                            leave=True
+                            )
+    epoch_bar = tqdm_notebook(desc='training routine',
+                              total=num_epochs,
+                              position=0
+                              )
+    try:
+        for epoch_index in range(num_epochs):
+            train_state['epoch_index'] = epoch_index
 
-        # Iterate over training dataset
+            # Iterate over training dataset
 
-        # setup: batch generator, set loss and acc to 0, set train mode on
+            # setup: batch generator, set loss and acc to 0, set train mode on
 
-        dataset.set_split('train')
-        batch_generator = generate_batches(dataset, 
-                                           batch_size=args.batch_size, 
-                                           device=args.device)
-        running_loss = 0.0
-        running_acc = 0.0
-        classifier.train()
+            # dataset.set_split('train')
+            # ##############################         ###################
+            # batch_generator = generate_batches_func(dataset, 
+            #                                         batch_size=batch_size, 
+            #                                         device=device
+            #                                         )
+            running_loss = 0.0
+            running_acc = 0.0
+            #model.train()
 
-        for batch_index, batch_dict in enumerate(batch_generator):
-            # the training routine is these 5 steps:
+            for batch_index, batch_dict in enumerate(batch_generator):
+                # the training routine is these 5 steps:
 
-            # --------------------------------------
-            # step 1. zero the gradients
-            optimizer.zero_grad()
+                # --------------------------------------
+                # step 1. zero the gradients
+                # optimizer.zero_grad()
 
-            # step 2. compute the output
-            y_pred = classifier(batch_dict['x_data'])
+                # # step 2. compute the output
+                # y_pred = model(batch_dict['x_data'])
 
-            # step 3. compute the loss
-            loss = loss_func(y_pred, batch_dict['y_target'])
-            loss_t = loss.item()
-            running_loss += (loss_t - running_loss) / (batch_index + 1)
+                # # step 3. compute the loss
+                # loss = loss_func(y_pred, batch_dict['y_target'])
+                # loss_t = loss.item()
+                # running_loss += (loss_t - running_loss) / (batch_index + 1)
 
-            # step 4. use loss to produce gradients
-            loss.backward()
+                # # step 4. use loss to produce gradients
+                # loss.backward()
 
-            # step 5. use optimizer to take gradient step
-            optimizer.step()
-            # -----------------------------------------
-            # compute the accuracy
-            acc_t = compute_accuracy(y_pred, batch_dict['y_target'])
-            running_acc += (acc_t - running_acc) / (batch_index + 1)
+                # # step 5. use optimizer to take gradient step
+                # optimizer.step()
+                # # -----------------------------------------
+                # # compute the accuracy
+                # acc_t = evaluate_func(y_pred, batch_dict['y_target'])
+                # running_acc += (acc_t - running_acc) / (batch_index + 1)
 
-            # update bar
-            train_bar.set_postfix(loss=running_loss, acc=running_acc, 
-                                  epoch=epoch_index)
-            train_bar.update()
+                # # update bar
+                # train_bar.set_postfix(loss=running_loss, 
+                #                       acc=running_acc,
+                #                       epoch=epoch_index
+                #                       )
+                # train_bar.update()
+                model, running_loss, running_acc, mode_bar = compute_model_performance(model=model,
+                                          mode="train",
+                                          dataset=dataset,
+                                          loss_func=loss_func,
+                                          evaluate_func=evaluate_func,
+                                          optimizer=optimizer,
+                                          mode_bar=train_bar,
+                                          #mode_state=train_state
+                                          )
 
-        train_state['train_loss'].append(running_loss)
-        train_state['train_acc'].append(running_acc)
+            train_state['train_loss'].append(running_loss)
+            train_state['train_acc'].append(running_acc)
 
-        # Iterate over val dataset
+            # Iterate over val dataset
 
-        # setup: batch generator, set loss and acc to 0; set eval mode on
-        dataset.set_split('val')
-        batch_generator = generate_batches(dataset, 
-                                           batch_size=args.batch_size, 
-                                           device=args.device)
-        running_loss = 0.
-        running_acc = 0.
-        classifier.eval()
+            # setup: batch generator, set loss and acc to 0; set eval mode on
+            # dataset.set_split('val')
+            # ##############################         ###################
+            # batch_generator = generate_batches_func(dataset, 
+            #                                         batch_size=batch_size, 
+            #                                         device=device
+            #                                         )
+            running_loss = 0.
+            running_acc = 0.
+            #model.eval()
 
-        for batch_index, batch_dict in enumerate(batch_generator):
+            for batch_index, batch_dict in enumerate(batch_generator):
 
-            # compute the output
-            y_pred =  classifier(batch_dict['x_data'])
+                # # compute the output
+                # y_pred =  model(batch_dict['x_data'])
 
-            # step 3. compute the loss
-            loss = loss_func(y_pred, batch_dict['y_target'])
-            loss_t = loss.item()
-            running_loss += (loss_t - running_loss) / (batch_index + 1)
+                # # step 3. compute the loss
+                # loss = loss_func(y_pred, batch_dict['y_target'])
+                # loss_t = loss.item()
+                # running_loss += (loss_t - running_loss) / (batch_index + 1)
 
-            # compute the accuracy
-            acc_t = compute_accuracy(y_pred, batch_dict['y_target'])
-            running_acc += (acc_t - running_acc) / (batch_index + 1)
-            val_bar.set_postfix(loss=running_loss, acc=running_acc, 
-                            epoch=epoch_index)
-            val_bar.update()
+                # # compute the accuracy
+                # acc_t = evaluate_func(y_pred, batch_dict['y_target'])
+                # running_acc += (acc_t - running_acc) / (batch_index + 1)
+                # val_bar.set_postfix(loss=running_loss, acc=running_acc, 
+                #                     epoch=epoch_index
+                #                     )
+                # val_bar.update()
+                model, running_loss, running_acc, mode_bar = compute_model_performance(model=model,
+                                          mode="val",
+                                          dataset=dataset,
+                                          loss_func=loss_func,
+                                          evaluate_func=evaluate_func,
+                                          mode_bar=val_bar,
+                                          #mode_state=train_state
+                                          )
 
-        train_state['val_loss'].append(running_loss)
-        train_state['val_acc'].append(running_acc)
+            train_state['val_loss'].append(running_loss)
+            train_state['val_acc'].append(running_acc)
 
-        train_state = update_train_state(args=args, model=classifier,
-                                         train_state=train_state)
+            train_state = update_train_state_func(early_stopping_criteria, 
+                                                  model=model,
+                                                  train_state=train_state
+                                                  )
 
-        scheduler.step(train_state['val_loss'][-1])
+            scheduler.step(train_state['val_loss'][-1])
 
-        if train_state['stop_early']:
-            break
+            if train_state['stop_early']:
+                break
 
-        train_bar.n = 0
-        val_bar.n = 0
-        epoch_bar.update()
-except KeyboardInterrupt:
-    print("Exiting loop")
+            train_bar.n = 0
+            val_bar.n = 0
+            epoch_bar.update()
+    except KeyboardInterrupt:
+        print("Exiting loop")
 
 
 
@@ -223,6 +271,7 @@ dataset.class_weights = dataset.class_weights.to(args.device)
 loss_func = nn.CrossEntropyLoss(dataset.class_weights)
 
 dataset.set_split('test')
+#######################################        ###################
 batch_generator = generate_batches(dataset, 
                                    batch_size=args.batch_size, 
                                    device=args.device)
@@ -250,7 +299,84 @@ train_state['test_acc'] = running_acc
 print("Test loss: {};".format(train_state['test_loss']))
 print("Test Accuracy: {}".format(train_state['test_acc']))
 
+def compute_model_performance(model, mode: Literal["train", "val", "test"],
+                              dataset: ReviewDataset,
+                              loss_func, evaluate_func=compute_accuracy,
+                              optimizer: optim.Optimizer = None,
+                              mode_bar=None, #epoch_bar=None,
+                              #mode_state: dict = None,
+                              ):
+                                  
+    if mode == "train":
+        if optimizer is None:
+            raise ValueError("Optimizer must be provided for training mode")
+        dataset.set_split('train')
+        model.train()
+    elif mode == "eval":
+        dataset.set_split('val')
+        model.eval()
+    elif mode == "test":
+        dataset.set_split('test')
+        model.eval()
+    batch_generator = generate_batches(dataset,
+                                       batch_size,
+                                       device,
+                                       
+                                       )
+    running_loss = 0.
+    running_acc = 0.
 
+    for batch_index, batch_dict in enumerate(batch_generator):
+        if mode == "train":
+            # step 1. zero the gradients
+            optimizer.zero_grad()
+            
+        y_pred =  model(batch_dict['x_data'])
+        
+        # compute the loss
+        loss = loss_func(y_pred, batch_dict['y_target'])
+        loss_t = loss.item()
+        running_loss += (loss_t - running_loss) / (batch_index + 1)
+
+        # compute the accuracy
+        acc_t = compute_accuracy(y_pred, batch_dict['y_target'])
+        running_acc += (acc_t - running_acc) / (batch_index + 1)
+        if mode == "train":
+            loss.backward()
+            optimizer.step()
+            
+            # if mode_bar is not None:
+            #     mode_bar.set_postfix(loss=running_loss, acc=running_acc, 
+            #                         epoch=epoch_index
+            #                         )
+            #     mode_bar.update()
+        #elif mode == "val":
+        if mode_bar is not None:
+            mode_bar.set_postfix(loss=running_loss, acc=running_acc, 
+                                epoch=epoch_index
+                                )
+            mode_bar.update()
+    return model, running_loss, running_acc, mode_bar
+    # if mode == "train":
+    #     mode_state['train_loss'].append(running_loss)
+    #     mode_state['train_acc'].append(running_acc)
+    # elif mode == "val":
+    #     mode_state['val_loss'].append(running_loss)
+    #     mode_state['val_acc'].append(running_acc)
+        
+    #     mode_state = update_train_state_func(early_stopping_criteria,
+    #                                           model=model,
+    #                                           train_state=mode_state
+    #                                           )
+    #     scheduler.step(mode_state['val_loss'][-1])
+    #     if mode_state['stop_early']:
+    #         print("Early stopping triggered")
+    #         #return train_state
+            
+    # elif mode == "test":
+    #     mode_state['test_loss'] = running_loss
+    #     mode_state['test_acc'] = running_acc
+    # return mode_state, mode_bar  
 
 #%% Inference
 # Preprocess the reviews
