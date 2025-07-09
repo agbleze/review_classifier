@@ -317,12 +317,14 @@ def model_diagnostics(model, data: dict, vectorizer: ReviewVectorizer,
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Train a CNN for product reviews classification")
-    parser.add_argument('--data_csv', type=str, default='data_splitted/review_df_split2.csv',
+    parser.add_argument('--data_csv', type=str,
+                        default='data_splitted/review_df_split2.csv',
                         help='Path to the CSV file containing the reviews dataset')
     parser.add_argument('--vectorizer_file', type=str, default='model_store/vectorizer.json',)
 
     parser.add_argument("--model_state_file", 
                         type=str,
+                        help="Path to save the model state file",
                         )
     parser.add_argument("--save_dir", type=str, required=True)
     parser.add_argument("--glove_filepath", type=str,
@@ -363,6 +365,9 @@ def parse_arguments():
     parser.add_argument("--expand_filepaths_to_save_dir", default=True,)
     #parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--max_seq_length", default=1646, type=int,)
+    parser.add_argument("--resume_train", action="store_true",
+                        help="Resume training from the last checkpoint. Will use the model_state_file to load the model state and continue training."
+                        )
   
     
     return parser.parse_args()
@@ -376,7 +381,8 @@ def main():
                                             )
 
         args.model_state_file = os.path.join(args.save_dir,
-                                            args.model_state_file)
+                                            args.model_state_file
+                                            )
         
         print("Expanded filepaths: ")
         print("\t{}".format(args.vectorizer_file))
@@ -425,17 +431,19 @@ def main():
         print("Not using pre-trained embeddings")
         embeddings = True
         
-
+    
     classifier = ReviewClassifier(embedding_size=args.embedding_size,
-                                  num_embeddings=len(vectorizer.title_vocab),
-                                  num_channels=args.num_channels,
-                                  hidden_dim=args.hidden_dim,
-                                  num_classes=len(vectorizer.category_vocab),
-                                  dropout_p=args.dropout_p,
-                                  pretrained_embeddings=embeddings,
-                                  padding_idx=0
-                                  )
-                
+                                num_embeddings=len(vectorizer.title_vocab),
+                                num_channels=args.num_channels,
+                                hidden_dim=args.hidden_dim,
+                                num_classes=len(vectorizer.category_vocab),
+                                dropout_p=args.dropout_p,
+                                pretrained_embeddings=embeddings,
+                                padding_idx=0
+                                )
+    if args.resume_train:
+        logger.info(f"Resuming training from {args.model_state_file}")
+        classifier.load_state_dict(torch.load(args.model_state_file))      
             
     classifier = classifier.to(device)
     dataset.class_weights = dataset.class_weights.to(device)
