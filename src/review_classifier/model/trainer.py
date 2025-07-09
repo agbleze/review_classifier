@@ -15,114 +15,25 @@ from review_classifier.model.classifier import ReviewClassifier
 from review_classifier.preprocess.vectorizer import ReviewVectorizer
 from review_classifier.utils.embedding_matrix import EmbeddingMatrixMaker
 from review_classifier.utils.helpers import predict_category
-#%%
-parser = argparse.ArgumentParser(description="Train a CNN for product reviews classification")
-parser.add_argument('--data_csv', type=str, default='data_splitted/review_df_split2.csv',
-                    help='Path to the CSV file containing the reviews dataset')
-parser.add_argument('--vectorizer_file', type=str, default='model_store/vectorizer.json',
-if args.expand_filepaths_to_save_dir:
-    args.vectorizer_file = os.path.join(args.save_dir,
-                                        args.vectorizer_file)
+import torch
+import logging
 
-    args.model_state_file = os.path.join(args.save_dir,
-                                         args.model_state_file)
-    
-    print("Expanded filepaths: ")
-    print("\t{}".format(args.vectorizer_file))
-    print("\t{}".format(args.model_state_file))
-    
-# Check CUDA
-if not torch.cuda.is_available():
-    args.cuda = False
-    
-args.device = torch.device("cuda" if args.cuda else "cpu")
-print("Using CUDA: {}".format(args.cuda))
+logging.basicConfig(level=logging.DEBUG, 
+                    format="%(asctime)s - %(levelname)s - %(message)s"
+                    )
+logger = logging.getLogger(__name__)
 
-# Set seed for reproducibility
-set_seed_everywhere(args.seed, args.cuda)
-
-# handle dirs
-handle_dirs(args.save_dir)
-
-
-#%% Initializations
-args.use_glove = True
-
-if args.reload_from_files:
-    # training from a checkpoint
-    dataset = ReviewDataset.load_dataset_and_load_vectorizer(args.data_csv,
-                                                           args.vectorizer_file
-                                                           )
-else:
-    # create dataset and vectorizer
-    dataset = ReviewDataset.load_dataset_and_make_vectorizer(args.data_csv)
-    dataset.save_vectorizer(args.vectorizer_file)
-vectorizer = dataset.get_vectorizer()
-
-#%% Use GloVe or randomly initialized embeddings
-if args.use_glove:
-    words = vectorizer.title_vocab._token_to_idx.keys()
-    embedding_matrix = EmbeddingMatrixMaker(glove_filepath=args.glove_filepath,
-                         words=words
-                        )
-    embeddings = embedding_matrix.make_embedding_matrix()
-    embedding_matrix.save_embedding()
-    # embeddings = make_embedding_matrix(glove_filepath=args.glove_filepath,
-    #                                    words=words)
-    print("Using pre-trained embeddings")
-else:
-    print("Not using pre-trained embeddings")
-    embeddings = True
-    
 
 #%%
-classifier = ReviewClassifier(embedding_size=args.embedding_size,
-                            num_embeddings=len(vectorizer.title_vocab),
-                            num_channels=args.num_channels,
-                            hidden_dim=args.hidden_dim,
-                            num_classes=len(vectorizer.category_vocab),
-                            dropout_p=args.dropout_p,
-                            pretrained_embeddings=embeddings,
-                            padding_idx=0
-                            )
-            
-        
-        
 
-#%% Training loop
-classifier = classifier.to(args.device)
-dataset.class_weights = dataset.class_weights.to(args.device)
-    
-loss_func = nn.CrossEntropyLoss(dataset.class_weights)
-optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
-                                           mode='min', factor=0.5,
-                                           patience=1)
 
-train_state = make_train_state(args)
-
-# epoch_bar = tqdm_notebook(desc='training routine', 
-#                           total=args.num_epochs,
-#                           position=0)
-
-dataset.set_split('train')
-# train_bar = tqdm_notebook(desc='split=train',
-#                           total=dataset.get_num_batches(args.batch_size), 
-#                           position=1, 
-#                           leave=True
-#                           )
-dataset.set_split('val')
-# val_bar = tqdm_notebook(desc='split=val',
-#                         total=dataset.get_num_batches(args.batch_size), 
-#                         position=1, 
-#                         leave=True)
 
 def train(model, num_epochs: int,
           loss_func, train_state: dict, dataset, optimizer,
           scheduler, generate_batches_func=generate_batches,
           update_train_state_func=update_train_state
           evaluate_func=compute_accuracy, batch_size=32, device='cpu',
-          early_stopping_criteria=5
+          early_stopping_criteria=5,
           ):
     train_bar = tqdm_notebook(desc='split=train',
                           total=dataset.get_num_batches(batch_size), 
@@ -156,7 +67,7 @@ def train(model, num_epochs: int,
             running_acc = 0.0
             #model.train()
 
-            for batch_index, batch_dict in enumerate(batch_generator):
+            #for batch_index, batch_dict in enumerate(batch_generator):
                 # the training routine is these 5 steps:
 
                 # --------------------------------------
@@ -187,15 +98,15 @@ def train(model, num_epochs: int,
                 #                       epoch=epoch_index
                 #                       )
                 # train_bar.update()
-                model, running_loss, running_acc, mode_bar = compute_model_performance(model=model,
-                                          mode="train",
-                                          dataset=dataset,
-                                          loss_func=loss_func,
-                                          evaluate_func=evaluate_func,
-                                          optimizer=optimizer,
-                                          mode_bar=train_bar,
-                                          #mode_state=train_state
-                                          )
+            model, running_loss, running_acc, mode_bar = compute_model_performance(model=model,
+                                        mode="train",
+                                        dataset=dataset,
+                                        loss_func=loss_func,
+                                        evaluate_func=evaluate_func,
+                                        optimizer=optimizer,
+                                        mode_bar=train_bar,
+                                        #mode_state=train_state
+                                        )
 
             train_state['train_loss'].append(running_loss)
             train_state['train_acc'].append(running_acc)
@@ -272,25 +183,35 @@ loss_func = nn.CrossEntropyLoss(dataset.class_weights)
 
 dataset.set_split('test')
 #######################################        ###################
-batch_generator = generate_batches(dataset, 
-                                   batch_size=args.batch_size, 
-                                   device=args.device)
-running_loss = 0.
-running_acc = 0.
-classifier.eval()
+# batch_generator = generate_batches(dataset, 
+#                                    batch_size=args.batch_size, 
+#                                    device=args.device)
+# running_loss = 0.
+# running_acc = 0.
+# classifier.eval()
 
-for batch_index, batch_dict in enumerate(batch_generator):
-    # compute the output
-    y_pred =  classifier(batch_dict['x_data'])
+# for batch_index, batch_dict in enumerate(batch_generator):
+#     # compute the output
+#     y_pred =  classifier(batch_dict['x_data'])
     
-    # compute the loss
-    loss = loss_func(y_pred, batch_dict['y_target'])
-    loss_t = loss.item()
-    running_loss += (loss_t - running_loss) / (batch_index + 1)
+#     # compute the loss
+#     loss = loss_func(y_pred, batch_dict['y_target'])
+#     loss_t = loss.item()
+#     running_loss += (loss_t - running_loss) / (batch_index + 1)
 
-    # compute the accuracy
-    acc_t = compute_accuracy(y_pred, batch_dict['y_target'])
-    running_acc += (acc_t - running_acc) / (batch_index + 1)
+#     # compute the accuracy
+#     acc_t = compute_accuracy(y_pred, batch_dict['y_target'])
+#     running_acc += (acc_t - running_acc) / (batch_index + 1)
+
+
+model, running_loss, running_acc, mode_bar = compute_model_performance(model=classifier,
+                                          mode="test",
+                                          dataset=dataset,
+                                          loss_func=loss_func,
+                                          evaluate_func=compute_accuracy,
+                                          mode_bar=None,
+                                          #mode_state=train_state
+                                          )
 
 train_state['test_loss'] = running_loss
 train_state['test_acc'] = running_acc
@@ -445,6 +366,156 @@ def model_diagnostics(model, data: dict, vectorizer: ReviewVectorizer,
 #%%
 predict_category("I the best product", classifier, vectorizer, dataset._max_seq_length +1)
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Train a CNN for product reviews classification")
+    parser.add_argument('--data_csv', type=str, default='data_splitted/review_df_split2.csv',
+                        help='Path to the CSV file containing the reviews dataset')
+    parser.add_argument('--vectorizer_file', type=str, default='model_store/vectorizer.json',)
+
+    parser.add_argument("--model_state_file", 
+                        type=str,
+                        )
+    parser.add_argument("--save_dir", type=str, required=True)
+    parser.add_argument("--glove_filepath", type=str,
+                        )
+    parser.add_argument("--use_glove", action="store_true",
+                        required=False
+                        )
+    parser.add_argument("--embedding_size",
+                        type=int,
+                        default=100,
+                        )
+    parser.add_argument("--hidden_dim",
+                        type=int,
+                        default=100
+                        )
+    parser.add_argument("--num_channels",
+                        type=int,
+                        default=100,
+                        )
+    parser.add_argument("--seed", type=int, default=1337)
+    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--dropout_p", type=float, default=0.1)
+    parser.add_argument("--batch_size",
+                        type=int, default=128
+                        )
+    parser.add_argument("--num_epochs",
+                        type=int, default=300, 
+                        )
+    parser.add_argument("--early_stopping_criteria",
+                        default=5,
+                        help="Threshold to stop training early if the validation loss does not improve for this many epochs",
+                        type=int
+                        )
+    parser.add_argument("--catch_keyboard_interrupt", action="store_true",
+                        help="Catch keyboard interrupt to stop training gracefully"
+                        )
+    parser.add_argument("--reload_from_files", action="store_true")
+    parser.add_argument("--expand_filepaths_to_save_dir", default=True,)
+    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--max_seq_length", default=1646, type=int,)
+  
+    
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    if args.expand_filepaths_to_save_dir:
+    args.vectorizer_file = os.path.join(args.save_dir,
+                                        args.vectorizer_file)
+
+    args.model_state_file = os.path.join(args.save_dir,
+                                         args.model_state_file)
+    
+    print("Expanded filepaths: ")
+    print("\t{}".format(args.vectorizer_file))
+    print("\t{}".format(args.model_state_file))
+    
+    # Check CUDA
+    if not torch.cuda.is_available():
+        args.cuda = False
+        
+    args.device = torch.device("cuda" if args.cuda else "cpu")
+    print("Using CUDA: {}".format(args.cuda))
+
+    # Set seed for reproducibility
+    set_seed_everywhere(args.seed, args.cuda)
+
+    # handle dirs
+    handle_dirs(args.save_dir)
+
+
+    #%% Initializations
+    args.use_glove = True
+
+    if args.reload_from_files:
+        # training from a checkpoint
+        dataset = ReviewDataset.load_dataset_and_load_vectorizer(args.data_csv,
+                                                            args.vectorizer_file
+                                                            )
+    else:
+        # create dataset and vectorizer
+        dataset = ReviewDataset.load_dataset_and_make_vectorizer(args.data_csv)
+        dataset.save_vectorizer(args.vectorizer_file)
+    vectorizer = dataset.get_vectorizer()
+
+    #%% Use GloVe or randomly initialized embeddings
+    if args.use_glove:
+        words = vectorizer.title_vocab._token_to_idx.keys()
+        embedding_matrix = EmbeddingMatrixMaker(glove_filepath=args.glove_filepath,
+                            words=words
+                            )
+        embeddings = embedding_matrix.make_embedding_matrix()
+        embedding_matrix.save_embedding()
+        # embeddings = make_embedding_matrix(glove_filepath=args.glove_filepath,
+        #                                    words=words)
+        print("Using pre-trained embeddings")
+    else:
+        print("Not using pre-trained embeddings")
+        embeddings = True
+        
+
+    #%%
+    classifier = ReviewClassifier(embedding_size=args.embedding_size,
+                                num_embeddings=len(vectorizer.title_vocab),
+                                num_channels=args.num_channels,
+                                hidden_dim=args.hidden_dim,
+                                num_classes=len(vectorizer.category_vocab),
+                                dropout_p=args.dropout_p,
+                                pretrained_embeddings=embeddings,
+                                padding_idx=0
+                                )
+                
+            
+            
+
+    #%% Training loop
+    classifier = classifier.to(args.device)
+    dataset.class_weights = dataset.class_weights.to(args.device)
+        
+    loss_func = nn.CrossEntropyLoss(dataset.class_weights)
+    optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
+                                            mode='min', factor=0.5,
+                                            patience=1)
+
+    train_state = make_train_state(args)
+
+    # epoch_bar = tqdm_notebook(desc='training routine', 
+    #                           total=args.num_epochs,
+    #                           position=0)
+
+    dataset.set_split('train')
+    # train_bar = tqdm_notebook(desc='split=train',
+    #                           total=dataset.get_num_batches(args.batch_size), 
+    #                           position=1, 
+    #                           leave=True
+    #                           )
+    dataset.set_split('val')
+    # val_bar = tqdm_notebook(desc='split=val',
+    #                         total=dataset.get_num_batches(args.batch_size), 
+    #                         position=1, 
+    #                         leave=True)
 
 
 
