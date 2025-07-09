@@ -3,8 +3,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm_notebook
 import argparse
+from typing import Literal
 
-from review_classifier.utils.helpers import (args, load_glove_from_file, 
+from review_classifier.utils.helpers import (load_glove_from_file, 
                                             set_seed_everywhere, handle_dirs,
                                             #make_embedding_matrix, 
                                             compute_accuracy, make_train_state,
@@ -17,6 +18,7 @@ from review_classifier.utils.embedding_matrix import EmbeddingMatrixMaker
 from review_classifier.utils.helpers import predict_category
 import torch
 import logging
+import os
 
 logging.basicConfig(level=logging.DEBUG, 
                     format="%(asctime)s - %(levelname)s - %(message)s"
@@ -30,9 +32,10 @@ logger = logging.getLogger(__name__)
 
 def train(model, num_epochs: int,
           loss_func, train_state: dict, dataset, optimizer,
-          scheduler, generate_batches_func=generate_batches,
-          update_train_state_func=update_train_state
-          evaluate_func=compute_accuracy, batch_size=32, device='cpu',
+          scheduler, #generate_batches_func=generate_batches,
+          update_train_state_func=update_train_state,
+          evaluate_func=compute_accuracy, batch_size=32, 
+          #device='cuda',
           early_stopping_criteria=5,
           ):
     train_bar = tqdm_notebook(desc='split=train',
@@ -105,6 +108,7 @@ def train(model, num_epochs: int,
                                         evaluate_func=evaluate_func,
                                         optimizer=optimizer,
                                         mode_bar=train_bar,
+                                        epoch_index=epoch_index,
                                         #mode_state=train_state
                                         )
 
@@ -124,7 +128,7 @@ def train(model, num_epochs: int,
             running_acc = 0.
             #model.eval()
 
-            for batch_index, batch_dict in enumerate(batch_generator):
+            #for batch_index, batch_dict in enumerate(batch_generator):
 
                 # # compute the output
                 # y_pred =  model(batch_dict['x_data'])
@@ -141,14 +145,15 @@ def train(model, num_epochs: int,
                 #                     epoch=epoch_index
                 #                     )
                 # val_bar.update()
-                model, running_loss, running_acc, mode_bar = compute_model_performance(model=model,
-                                          mode="val",
-                                          dataset=dataset,
-                                          loss_func=loss_func,
-                                          evaluate_func=evaluate_func,
-                                          mode_bar=val_bar,
-                                          #mode_state=train_state
-                                          )
+            model, running_loss, running_acc, mode_bar = compute_model_performance(model=model,
+                                        mode="val",
+                                        dataset=dataset,
+                                        loss_func=loss_func,
+                                        evaluate_func=evaluate_func,
+                                        mode_bar=val_bar,
+                                        epoch_index=epoch_index,
+                                        #mode_state=train_state
+                                        )
 
             train_state['val_loss'].append(running_loss)
             train_state['val_acc'].append(running_acc)
@@ -166,65 +171,22 @@ def train(model, num_epochs: int,
             train_bar.n = 0
             val_bar.n = 0
             epoch_bar.update()
+        return train_state
     except KeyboardInterrupt:
         print("Exiting loop")
 
 
 
-#%% TESTING 
-
-# compute the loss & accuracy on the test set using the best available model
-
-classifier.load_state_dict(torch.load(train_state['model_filename']))
-
-classifier = classifier.to(args.device)
-dataset.class_weights = dataset.class_weights.to(args.device)
-loss_func = nn.CrossEntropyLoss(dataset.class_weights)
-
-dataset.set_split('test')
-#######################################        ###################
-# batch_generator = generate_batches(dataset, 
-#                                    batch_size=args.batch_size, 
-#                                    device=args.device)
-# running_loss = 0.
-# running_acc = 0.
-# classifier.eval()
-
-# for batch_index, batch_dict in enumerate(batch_generator):
-#     # compute the output
-#     y_pred =  classifier(batch_dict['x_data'])
-    
-#     # compute the loss
-#     loss = loss_func(y_pred, batch_dict['y_target'])
-#     loss_t = loss.item()
-#     running_loss += (loss_t - running_loss) / (batch_index + 1)
-
-#     # compute the accuracy
-#     acc_t = compute_accuracy(y_pred, batch_dict['y_target'])
-#     running_acc += (acc_t - running_acc) / (batch_index + 1)
-
-
-model, running_loss, running_acc, mode_bar = compute_model_performance(model=classifier,
-                                          mode="test",
-                                          dataset=dataset,
-                                          loss_func=loss_func,
-                                          evaluate_func=compute_accuracy,
-                                          mode_bar=None,
-                                          #mode_state=train_state
-                                          )
-
-train_state['test_loss'] = running_loss
-train_state['test_acc'] = running_acc
-
-    
-print("Test loss: {};".format(train_state['test_loss']))
-print("Test Accuracy: {}".format(train_state['test_acc']))
 
 def compute_model_performance(model, mode: Literal["train", "val", "test"],
                               dataset: ReviewDataset,
-                              loss_func, evaluate_func=compute_accuracy,
+                              batch_size,
+                              loss_func, epoch_index: int,
+                              evaluate_func=compute_accuracy,
                               optimizer: optim.Optimizer = None,
-                              mode_bar=None, #epoch_bar=None,
+                              mode_bar=None, 
+                              device="cuda",
+                              #epoch_bar=None,
                               #mode_state: dict = None,
                               ):
                                   
@@ -260,7 +222,7 @@ def compute_model_performance(model, mode: Literal["train", "val", "test"],
         running_loss += (loss_t - running_loss) / (batch_index + 1)
 
         # compute the accuracy
-        acc_t = compute_accuracy(y_pred, batch_dict['y_target'])
+        acc_t = evaluate_func(y_pred, batch_dict['y_target'])
         running_acc += (acc_t - running_acc) / (batch_index + 1)
         if mode == "train":
             loss.backward()
@@ -301,11 +263,6 @@ def compute_model_performance(model, mode: Literal["train", "val", "test"],
 
 #%% Inference
 # Preprocess the reviews
-def preprocess_text(text):
-    text = ' '.join(word.lower() for word in text.split(" "))
-    text = re.sub(pattern=r"([.,!?])", repl=r" \1 ", string=text)
-    text = re.sub(pattern=r"[^a-zA-Z.,!?]+", repl=r" ", string=text)       
-    return text
 
 
 #%%
@@ -331,22 +288,13 @@ def preprocess_text(text):
 #             }
 
 
-#%%
-def get_samples():
-    samples = {}
-    for cat in dataset.val_df['reviews.doRecommend'].unique():
-        samples[cat] = dataset.val_df['reviews.text'][dataset.val_df['reviews.doRecommend']==cat].tolist()[:5]
-    return samples
-
-val_samples = get_samples()
-
 
 #%%
 #title = input("Enter a news title to classify: ")
-classifier = classifier.to("cpu")
+#classifier = classifier.to("cpu")
 
 def model_diagnostics(model, data: dict, vectorizer: ReviewVectorizer, 
-                      max_seq_length: int = dataset._max_seq_length + 1
+                      max_seq_length: int #= dataset._max_seq_length + 1
                       ) -> None:
     for truth, sample_group in data.items():
         print(f"Groundtruth: {truth}")
@@ -364,7 +312,7 @@ def model_diagnostics(model, data: dict, vectorizer: ReviewVectorizer,
 
 
 #%%
-predict_category("I the best product", classifier, vectorizer, dataset._max_seq_length +1)
+#predict_category("I the best product", classifier, vectorizer, dataset._max_seq_length +1)
 
 
 def parse_arguments():
@@ -413,40 +361,43 @@ def parse_arguments():
                         )
     parser.add_argument("--reload_from_files", action="store_true")
     parser.add_argument("--expand_filepaths_to_save_dir", default=True,)
-    parser.add_argument("--device", type=str, default="cuda")
+    #parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--max_seq_length", default=1646, type=int,)
   
     
     return parser.parse_args()
 
-if __name__ == "__main__":
-    if args.expand_filepaths_to_save_dir:
-    args.vectorizer_file = os.path.join(args.save_dir,
-                                        args.vectorizer_file)
 
-    args.model_state_file = os.path.join(args.save_dir,
-                                         args.model_state_file)
-    
-    print("Expanded filepaths: ")
-    print("\t{}".format(args.vectorizer_file))
-    print("\t{}".format(args.model_state_file))
-    
-    # Check CUDA
-    if not torch.cuda.is_available():
-        args.cuda = False
+def main():
+    args = parse_arguments()
+    if args.expand_filepaths_to_save_dir:
+        args.vectorizer_file = os.path.join(args.save_dir,
+                                            args.vectorizer_file
+                                            )
+
+        args.model_state_file = os.path.join(args.save_dir,
+                                            args.model_state_file)
         
-    args.device = torch.device("cuda" if args.cuda else "cpu")
-    print("Using CUDA: {}".format(args.cuda))
+        print("Expanded filepaths: ")
+        print("\t{}".format(args.vectorizer_file))
+        print("\t{}".format(args.model_state_file))
+        
+        # Check CUDA
+    if not torch.cuda.is_available():
+        cuda = False
+        
+    device = torch.device("cuda" if cuda else "cpu")
+    print("Using CUDA: {}".format(cuda))
 
     # Set seed for reproducibility
-    set_seed_everywhere(args.seed, args.cuda)
+    set_seed_everywhere(args.seed, cuda)
 
     # handle dirs
     handle_dirs(args.save_dir)
 
 
     #%% Initializations
-    args.use_glove = True
+    #args.use_glove = True
 
     if args.reload_from_files:
         # training from a checkpoint
@@ -475,43 +426,62 @@ if __name__ == "__main__":
         embeddings = True
         
 
-    #%%
     classifier = ReviewClassifier(embedding_size=args.embedding_size,
-                                num_embeddings=len(vectorizer.title_vocab),
-                                num_channels=args.num_channels,
-                                hidden_dim=args.hidden_dim,
-                                num_classes=len(vectorizer.category_vocab),
-                                dropout_p=args.dropout_p,
-                                pretrained_embeddings=embeddings,
-                                padding_idx=0
-                                )
+                                  num_embeddings=len(vectorizer.title_vocab),
+                                  num_channels=args.num_channels,
+                                  hidden_dim=args.hidden_dim,
+                                  num_classes=len(vectorizer.category_vocab),
+                                  dropout_p=args.dropout_p,
+                                  pretrained_embeddings=embeddings,
+                                  padding_idx=0
+                                  )
                 
             
-            
-
-    #%% Training loop
-    classifier = classifier.to(args.device)
-    dataset.class_weights = dataset.class_weights.to(args.device)
+    classifier = classifier.to(device)
+    dataset.class_weights = dataset.class_weights.to(device)
         
     loss_func = nn.CrossEntropyLoss(dataset.class_weights)
     optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
-                                            mode='min', factor=0.5,
-                                            patience=1)
+                                                    mode='min', factor=0.5,
+                                                    patience=1
+                                                    )
 
-    train_state = make_train_state(args)
-
+    train_state = make_train_state(learning_rate=args.learning_rate,
+                                   model_state_file=args.model_state_file,
+                                   early_stopping_criteria=args.early_stopping_criteria
+                                   )
+    train_state = train(model=classifier, num_epochs=args.num_epochs,
+                        loss_func=loss_func, train_state=train_state, 
+                        dataset=dataset, optimizer=optimizer,
+                        scheduler=scheduler, #generate_batches_func=generate_batches,
+                        update_train_state_func=update_train_state,
+                        evaluate_func=compute_accuracy, batch_size=32, 
+                        #device='cuda',
+                        early_stopping_criteria=args.early_stopping_criteria,
+                        )
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     # epoch_bar = tqdm_notebook(desc='training routine', 
     #                           total=args.num_epochs,
     #                           position=0)
 
-    dataset.set_split('train')
+    #dataset.set_split('train')
     # train_bar = tqdm_notebook(desc='split=train',
     #                           total=dataset.get_num_batches(args.batch_size), 
     #                           position=1, 
     #                           leave=True
     #                           )
-    dataset.set_split('val')
+    #dataset.set_split('val')
     # val_bar = tqdm_notebook(desc='split=val',
     #                         total=dataset.get_num_batches(args.batch_size), 
     #                         position=1, 
