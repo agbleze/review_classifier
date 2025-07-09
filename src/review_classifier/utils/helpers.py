@@ -7,7 +7,9 @@ import numpy as np
 import json
 import requests
 from ..model_store.artefacts import model_path, vector_path
-
+from typing import Literal
+from review_classifier.data.review_dataset import ReviewDataset
+import re
 args = Namespace(
     # Data and Path hyper parameters
     data_csv=None,
@@ -37,11 +39,14 @@ args = Namespace(
 ) 
 
 
-def make_train_state(args):
+def make_train_state(learning_rate: float, 
+                     model_state_file: str,
+                     early_stopping_step: int = 0,
+                     ):
     return {'stop_early': False,
-            'early_stopping_step': 0,
+            'early_stopping_step': early_stopping_step,
             'early_stopping_best_val': 1e8,
-            'learning_rate': args.learning_rate,
+            'learning_rate': learning_rate,
             'epoch_index': 0,
             'train_loss': [],
             'train_acc': [],
@@ -49,16 +54,17 @@ def make_train_state(args):
             'val_acc': [],
             'test_loss': -1,
             'test_acc': -1,
-            'model_filename': args.model_state_file}
+            'model_filename': model_state_file
+            }
 
-def update_train_state(args, model, train_state):
+def update_train_state(early_stopping_criteria, model, train_state):
     """Handle the training state updates.
 
     Components:
      - Early Stopping: Prevent overfitting.
      - Model Checkpoint: Model is saved if the model is better
 
-    :param args: main arguments
+    :param early_stopping_criteria: early_stopping_criteria
     :param model: model to train
     :param train_state: a dictionary representing the training state values
     :returns:
@@ -89,7 +95,7 @@ def update_train_state(args, model, train_state):
 
         # Stop early ?
         train_state['stop_early'] = \
-            train_state['early_stopping_step'] >= args.early_stopping_criteria
+            train_state['early_stopping_step'] >= early_stopping_criteria
 
     return train_state
 
@@ -195,3 +201,27 @@ def request_prediction(URL: str, review_data: str):
     prediction = json.loads(response)
     return prediction
 
+def get_samples(dataset: ReviewDataset,
+                split_type: Literal["train", "val", "test"],
+                 num_samples: int = 5,
+                 
+                 ) -> dict:
+    samples = {}
+    if split_type == "val":
+        df = dataset.val_df
+    elif split_type == "train":
+        df = dataset.train_df
+    elif split_type == "test":
+        df = dataset.test_df
+        
+    for cat in df['reviews.doRecommend'].unique():
+        samples[cat] = df['reviews.text'][df['reviews.doRecommend']==cat].tolist()[:num_samples]
+    
+    return samples
+
+
+def preprocess_text(text):
+    text = ' '.join(word.lower() for word in text.split(" "))
+    text = re.sub(pattern=r"([.,!?])", repl=r" \1 ", string=text)
+    text = re.sub(pattern=r"[^a-zA-Z.,!?]+", repl=r" ", string=text)       
+    return text
