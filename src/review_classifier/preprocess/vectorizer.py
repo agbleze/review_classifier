@@ -27,9 +27,9 @@ class ReviewVectorizer(object):
     
     @classmethod
     def from_dataframe(cls, review_df, cutoff=0):
-        category_vocab = Vocabulary()
+        cls.category_vocab = Vocabulary()
         for category in sorted(set(review_df['reviews.doRecommend'])):
-            category_vocab.add_token(category)
+            cls.category_vocab.add_token(category)
             
         word_counts = Counter()
         for review in review_df['reviews.text']:
@@ -37,23 +37,23 @@ class ReviewVectorizer(object):
             for token in preprocess_texts_to_tokens(review):
                 word_counts[token] += 1
                     
-        review_vocab = SequenceVocabulary()
+        cls.review_vocab = SequenceVocabulary()
         for word, word_count in word_counts.items():
             if word_count >= cutoff:
-                review_vocab.add_token(word)
+                cls.review_vocab.add_token(word)
                 
-        return cls(review_vocab, category_vocab)
+        return cls(cls.review_vocab, cls.category_vocab)
     
     @classmethod
     def from_serializable(cls, contents):
-        review_vocab = SequenceVocabulary.from_serializable(contents['title_vocab'])
+        cls.review_vocab = SequenceVocabulary.from_serializable(contents['title_vocab'])
         
-        category_vocab = Vocabulary.from_serializable(contents['category_vocab'])
+        cls.category_vocab = Vocabulary.from_serializable(contents['category_vocab'])
         
-        return cls(review_vocab=review_vocab, category_vocab=category_vocab)
+        return cls(review_vocab=cls.review_vocab, category_vocab=cls.category_vocab)
     
     @classmethod
-    def to_serializable(self):
-        return {'review_vocab': self.review_vocab.to_serializable(),
-                'category_vocab': self.category_vocab.to_serializable()
+    def to_serializable(cls):#self):
+        return {'review_vocab': cls.review_vocab.to_serializable(),#self.review_vocab.to_serializable(),
+                'category_vocab': cls.category_vocab.to_serializable(), #self.category_vocab.to_serializable()
                 }
