@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "review_classifier"
-version = "1.1.0"
+version = "1.2.0"
 description = "A package for doing great things!"
 authors = ["Agbleze"]
 license = "MIT"
