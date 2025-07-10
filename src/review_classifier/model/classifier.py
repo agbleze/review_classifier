@@ -5,47 +5,51 @@ import torch.nn.functional as F
 class ReviewClassifier(nn.Module):
     def __init__(self, embedding_size, num_embeddings, num_channels,
                  hidden_dim, num_classes, dropout_p, pretrained_embeddings=None,
-                 padding_idx=0) -> None:
+                 padding_idx=0,
+                 device="cuda"
+                 ) -> None:
         super(ReviewClassifier, self).__init__()
-        
+        self.device = device
         if pretrained_embeddings is None:
             self.emb = nn.Embedding(embedding_dim=embedding_size,
                                     num_embeddings=num_embeddings,
-                                    padding_idx=padding_idx)
+                                    padding_idx=padding_idx
+                                    )
+            self.emb.to(device=device)
         else:
             pretrained_embeddings = torch.from_numpy(pretrained_embeddings).float()
             self.emb = nn.Embedding(embedding_dim=embedding_size,
                                     num_embeddings=num_embeddings,
                                     padding_idx=padding_idx,
-                                    _weight=pretrained_embeddings
+                                    _weight=pretrained_embeddings.to(device=device)
                                     )
+            self.emb.to(device=device)
             
-        self.convnet = nn.Sequential(
-            nn.Conv1d(in_channels=embedding_size,
-                      out_channels=num_channels, kernel_size=3
-                      ),
-            nn.ELU(),
-            nn.Conv1d(in_channels=num_channels, out_channels=num_channels,
-                      kernel_size=3, stride=2
-                      ),
-            nn.ELU(),
-            nn.Conv1d(in_channels=num_channels, out_channels=num_channels,
-                      kernel_size=3, stride=2),
-            nn.ELU(),
-            nn.Conv1d(in_channels=num_channels, out_channels=num_channels,
-                      kernel_size=3
-                      ),
-            nn.ELU()
-        )
+        self.convnet = nn.Sequential(nn.Conv1d(in_channels=embedding_size,
+                                            out_channels=num_channels, kernel_size=3
+                                            ),
+                                    nn.ELU(),
+                                    nn.Conv1d(in_channels=num_channels, out_channels=num_channels,
+                                            kernel_size=3, stride=2
+                                            ),
+                                    nn.ELU(),
+                                    nn.Conv1d(in_channels=num_channels, out_channels=num_channels,
+                                            kernel_size=3, stride=2),
+                                    nn.ELU(),
+                                    nn.Conv1d(in_channels=num_channels, out_channels=num_channels,
+                                            kernel_size=3
+                                            ),
+                                    nn.ELU()
+                                    ).to(device=device)
         
         self._dropout_p = dropout_p
-        self.fc1 = nn.Linear(in_features=num_channels, out_features=hidden_dim)
-        self.fc2 = nn.Linear(in_features=hidden_dim, out_features= num_classes)
+        self.fc1 = nn.Linear(in_features=num_channels, out_features=hidden_dim).to(device=device)
+        self.fc2 = nn.Linear(in_features=hidden_dim, out_features= num_classes).to(device=device)
         
         
     def forward(self, x_in, apply_softmax=False):
         # embed and permute so features are channels
-        x_embedded = self.emb(x_in).permute(0, 2, 1)
+        x_embedded = self.emb(x_in.to(self.device)).permute(0, 2, 1)
         
         features = self.convnet(x_embedded)
         
