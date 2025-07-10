@@ -1,6 +1,5 @@
 from collections import Counter
 import numpy as np
-import numpy as np
 from review_classifier.preprocess.vocabulary import Vocabulary
 from review_classifier.preprocess.sequence_vocabulary import SequenceVocabulary
 from review_classifier.preprocess.data_preprocess import preprocess_texts_to_tokens
