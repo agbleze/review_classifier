@@ -3,7 +3,7 @@ import numpy as np
 import numpy as np
 from review_classifier.preprocess.vocabulary import Vocabulary
 from review_classifier.preprocess.sequence_vocabulary import SequenceVocabulary
-#from ..preprocess.data_preprocess import preprocess_texts_to_tokens
+from review_classifier.preprocess.data_preprocess import preprocess_texts_to_tokens
 
 class ReviewVectorizer(object):
     """coordinate the vocabulary and put them to use"""
