@@ -15,7 +15,7 @@ from review_classifier.data.review_dataset import ReviewDataset
 from review_classifier.model.classifier import ReviewClassifier
 from review_classifier.preprocess.vectorizer import ReviewVectorizer
 from review_classifier.utils.embedding_matrix import EmbeddingMatrixMaker
-from review_classifier.utils.helpers import predict_category
+from review_classifier.utils.helpers import predict_category, get_samples
 import torch
 import logging
 import os
@@ -190,7 +190,7 @@ def train(model, num_epochs: int,
             train_bar.n = 0
             val_bar.n = 0
             epoch_bar.update()
-        return train_state
+        return model, train_state
     except KeyboardInterrupt:
         print("Exiting loop")
 
@@ -390,6 +390,12 @@ def parse_arguments():
     parser.add_argument("--tqdm_in_cli", action="store_true",
                         help="Use tqdm in CLI mode instead of notebook mode. This is useful for running the script in a terminal or command line interface."
                         )
+    parser.add_argument("--diagnose_model", action="store_true",
+                        help="Run model diagnostics after training. This will print the predictions for a few samples from the test set."
+                        )
+    parser.add_argument("--num_samples_to_diagnose", type=int, default=5,
+                        help="Number of samples to diagnose after training. This will print the predictions for a few samples from the test set."
+                        )
     
     
     return parser.parse_args()
@@ -485,22 +491,28 @@ def main():
                                    model_state_file=args.model_state_file,
                                    early_stopping_step=args.early_stopping_criteria
                                    )
-    train_state = train(model=classifier,
-                        num_epochs=args.num_epochs,
-                        loss_func=loss_func, 
-                        train_state=train_state, 
-                        dataset=dataset, optimizer=optimizer,
-                        scheduler=scheduler, #generate_batches_func=generate_batches,
-                        update_train_state_func=update_train_state,
-                        evaluate_func=compute_accuracy, 
-                        batch_size=args.batch_size, 
-                        #device='cuda',
-                        early_stopping_criteria=args.early_stopping_criteria,
-                        tqdm_in_cli=args.tqdm_in_cli
-                        )
-    
-    
-    
+    model, train_state = train(model=classifier,
+                               num_epochs=args.num_epochs,
+                               loss_func=loss_func,
+                               train_state=train_state,
+                               dataset=dataset, 
+                               optimizer=optimizer,
+                               scheduler=scheduler,
+                               update_train_state_func=update_train_state,
+                               evaluate_func=compute_accuracy,
+                               batch_size=args.batch_size,
+                               early_stopping_criteria=args.early_stopping_criteria,
+                               tqdm_in_cli=args.tqdm_in_cli
+                               )
+    if args.diagnose_model:
+        logger.info("Running model diagnostics on the test set")
+        data = get_samples(dataset=dataset, split_type='test',
+                            num_samples=args.num_samples_to_diagnose
+                            )
+        model_diagnostics(model=model, data=data, vectorizer=vectorizer, 
+                        max_seq_length=dataset._max_seq_length + 2
+                        ) 
+        
     
     
     
