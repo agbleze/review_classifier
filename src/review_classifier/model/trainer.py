@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from tqdm import tqdm_notebook
+from tqdm import tqdm_notebook, tqdm
 import argparse
 from typing import Literal
 
@@ -37,21 +37,38 @@ def train(model, num_epochs: int,
           evaluate_func=compute_accuracy, batch_size=32, 
           #device='cuda',
           early_stopping_criteria=5,
+          tqdm_in_cli=True,
           ):
-    train_bar = tqdm_notebook(desc='split=train',
-                          total=dataset.get_num_batches(batch_size), 
-                          position=1, 
-                          leave=True
-                          )
-    val_bar = tqdm_notebook(desc='split=val',
+    if not tqdm_in_cli:
+        train_bar = tqdm_notebook(desc='split=train',
                             total=dataset.get_num_batches(batch_size), 
                             position=1, 
                             leave=True
                             )
-    epoch_bar = tqdm_notebook(desc='training routine',
-                              total=num_epochs,
-                              position=0
-                              )
+        val_bar = tqdm_notebook(desc='split=val',
+                                total=dataset.get_num_batches(batch_size), 
+                                position=1, 
+                                leave=True
+                                )
+        epoch_bar = tqdm_notebook(desc='training routine',
+                                total=num_epochs,
+                                position=0
+                                )
+    else:
+        train_bar = tqdm(desc='split=train',
+                            total=dataset.get_num_batches(batch_size), 
+                            position=1, 
+                            leave=True
+                            )
+        val_bar = tqdm(desc='split=val',
+                        total=dataset.get_num_batches(batch_size), 
+                        position=1, 
+                        leave=True
+                        )
+        epoch_bar = tqdm(desc='training routine',
+                        total=num_epochs,
+                        position=0
+                        )
     try:
         for epoch_index in range(num_epochs):
             train_state['epoch_index'] = epoch_index
@@ -109,6 +126,7 @@ def train(model, num_epochs: int,
                                         optimizer=optimizer,
                                         mode_bar=train_bar,
                                         epoch_index=epoch_index,
+                                        batch_size=batch_size,
                                         #mode_state=train_state
                                         )
 
@@ -152,6 +170,7 @@ def train(model, num_epochs: int,
                                         evaluate_func=evaluate_func,
                                         mode_bar=val_bar,
                                         epoch_index=epoch_index,
+                                        batch_size=batch_size,
                                         #mode_state=train_state
                                         )
 
@@ -201,9 +220,9 @@ def compute_model_performance(model, mode: Literal["train", "val", "test"],
     elif mode == "test":
         dataset.set_split('test')
         model.eval()
-    batch_generator = generate_batches(dataset,
-                                       batch_size,
-                                       device,
+    batch_generator = generate_batches(dataset=dataset,
+                                       batch_size=batch_size,
+                                       device=device,
                                        
                                        )
     running_loss = 0.
@@ -362,13 +381,16 @@ def parse_arguments():
                         help="Catch keyboard interrupt to stop training gracefully"
                         )
     parser.add_argument("--reload_from_files", action="store_true")
-    parser.add_argument("--expand_filepaths_to_save_dir", default=True,)
+    parser.add_argument("--expand_filepaths_to_save_dir", action="store_true",)
     #parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--max_seq_length", default=1646, type=int,)
     parser.add_argument("--resume_train", action="store_true",
                         help="Resume training from the last checkpoint. Will use the model_state_file to load the model state and continue training."
                         )
-  
+    parser.add_argument("--tqdm_in_cli", action="store_true",
+                        help="Use tqdm in CLI mode instead of notebook mode. This is useful for running the script in a terminal or command line interface."
+                        )
+    
     
     return parser.parse_args()
 
@@ -391,10 +413,12 @@ def main():
         # Check CUDA
     if not torch.cuda.is_available():
         cuda = False
+    else:
+        cuda = True
         
     device = torch.device("cuda" if cuda else "cpu")
     print("Using CUDA: {}".format(cuda))
-
+    print(f"Using device: {device}")
     # Set seed for reproducibility
     set_seed_everywhere(args.seed, cuda)
 
@@ -413,12 +437,14 @@ def main():
     else:
         # create dataset and vectorizer
         dataset = ReviewDataset.load_dataset_and_make_vectorizer(args.data_csv)
+        # ReviewVectorizer.from_dataframe(review_df=dataset.train_df,
+        #                                 cutoff=0)
         dataset.save_vectorizer(args.vectorizer_file)
     vectorizer = dataset.get_vectorizer()
 
     #%% Use GloVe or randomly initialized embeddings
     if args.use_glove:
-        words = vectorizer.title_vocab._token_to_idx.keys()
+        words = vectorizer.review_vocab._token_to_idx.keys()
         embedding_matrix = EmbeddingMatrixMaker(glove_filepath=args.glove_filepath,
                             words=words
                             )
@@ -429,17 +455,17 @@ def main():
         print("Using pre-trained embeddings")
     else:
         print("Not using pre-trained embeddings")
-        embeddings = True
+        embeddings = None
         
     
     classifier = ReviewClassifier(embedding_size=args.embedding_size,
-                                num_embeddings=len(vectorizer.title_vocab),
+                                num_embeddings=len(vectorizer.review_vocab),
                                 num_channels=args.num_channels,
                                 hidden_dim=args.hidden_dim,
                                 num_classes=len(vectorizer.category_vocab),
                                 dropout_p=args.dropout_p,
                                 pretrained_embeddings=embeddings,
-                                padding_idx=0
+                                padding_idx=0, device=device
                                 )
     if args.resume_train:
         logger.info(f"Resuming training from {args.model_state_file}")
@@ -448,7 +474,7 @@ def main():
     classifier = classifier.to(device)
     dataset.class_weights = dataset.class_weights.to(device)
         
-    loss_func = nn.CrossEntropyLoss(dataset.class_weights)
+    loss_func = nn.CrossEntropyLoss(dataset.class_weights).to(device)
     optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
                                                     mode='min', factor=0.5,
@@ -457,16 +483,20 @@ def main():
 
     train_state = make_train_state(learning_rate=args.learning_rate,
                                    model_state_file=args.model_state_file,
-                                   early_stopping_criteria=args.early_stopping_criteria
+                                   early_stopping_step=args.early_stopping_criteria
                                    )
-    train_state = train(model=classifier, num_epochs=args.num_epochs,
-                        loss_func=loss_func, train_state=train_state, 
+    train_state = train(model=classifier,
+                        num_epochs=args.num_epochs,
+                        loss_func=loss_func, 
+                        train_state=train_state, 
                         dataset=dataset, optimizer=optimizer,
                         scheduler=scheduler, #generate_batches_func=generate_batches,
                         update_train_state_func=update_train_state,
-                        evaluate_func=compute_accuracy, batch_size=32, 
+                        evaluate_func=compute_accuracy, 
+                        batch_size=args.batch_size, 
                         #device='cuda',
                         early_stopping_criteria=args.early_stopping_criteria,
+                        tqdm_in_cli=args.tqdm_in_cli
                         )
     
     
