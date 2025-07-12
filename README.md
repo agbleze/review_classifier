@@ -7,16 +7,14 @@
 
 ## 📌 Table of Contents
 
-- [review\_classifier](#review_classifier)
-  - [📌 Table of Contents](#-table-of-contents)
 - [Project Description](#project-description)
-  - [Dataset and Variables](#dataset-and-variables)
-  - [Model training pipeline](#model-training-pipeline)
-  - [Installation](#installation)
-  - [Usage](#usage)
-  - [Contributing](#contributing)
-  - [License](#license)
-  - [Credits](#credits)
+- [Dataset and Variables](#dataset-and-variables)
+- [Model training pipeline](#model-training-pipeline)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
+- [Credits](#credits)
 
 ---
 
