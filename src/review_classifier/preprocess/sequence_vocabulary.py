@@ -1,4 +1,4 @@
-from ..preprocess.vocabulary import Vocabulary
+from review_classifier.preprocess.vocabulary import Vocabulary
 
 
 class SequenceVocabulary(Vocabulary):

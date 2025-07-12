@@ -66,6 +66,4 @@ class ReviewClassifier(nn.Module):
             prediction_vector = F.softmax(prediction_vector, dim=1)
             
         return prediction_vector
-    
-    
- 
+     

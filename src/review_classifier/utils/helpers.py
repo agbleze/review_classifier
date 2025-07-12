@@ -1,43 +1,12 @@
 import os
-from argparse import Namespace
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-import numpy as np
 import json
 import requests
-#from ..model_store.artefacts import model_path, vector_path
 from typing import Literal
 from review_classifier.data.review_dataset import ReviewDataset
 import re
-# args = Namespace(
-#     # Data and Path hyper parameters
-#     data_csv=None,
-#     vectorizer_file=vector_path,
-#     model_state_file=model_path,
-#     save_dir="model_store",
-#     # Model hyper parameters
-#     glove_filepath='glove/glove.6B.100d.txt', 
-#     use_glove=False,
-#     embedding_size=100, 
-#     hidden_dim=100, 
-#     num_channels=100, 
-#     # Training hyper parameter
-#     seed=1337, 
-#     learning_rate=0.001, 
-#     dropout_p=0.1, 
-#     batch_size=128, 
-#     num_epochs=10, 
-#     early_stopping_criteria=5, 
-#     # Runtime option
-#     cuda=True, 
-#     catch_keyboard_interrupt=True, 
-#     reload_from_files=False,
-#     expand_filepaths_to_save_dir=True,
-#     device='cpu',
-#     max_seq_length=1646, # This is the max length of the sequence
-# ) 
-
 
 def make_train_state(learning_rate: float, 
                      model_state_file: str,
