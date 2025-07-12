@@ -6,11 +6,16 @@ authors = ["Agbleze"]
 license = "MIT"
 readme = "README.md"
 
+[[tool.poetry.source]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+priority = "explicit"
+
 [tool.poetry.dependencies]
 python = "^3.10.14"
 importlib_metadata = "7.1.0"
 typing_extensions = "4.12.2"
-torch = "2.1.1+cu118"
+torch = { version = "2.1.1+cu118", source = "pytorch-cu118" }
 requests = "2.32.3"
 numpy = "1.26.4"
 
