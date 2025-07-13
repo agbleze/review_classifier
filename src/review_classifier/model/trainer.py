@@ -5,6 +5,8 @@ from tqdm import tqdm_notebook, tqdm
 import argparse
 from typing import Literal
 import json
+from onnx import load, save
+from onnxoptimizer import optimize
 
 from review_classifier.utils.helpers import (load_glove_from_file, 
                                             set_seed_everywhere, handle_dirs,
@@ -249,6 +251,12 @@ def parse_arguments():
     parser.add_argument("--num_samples_to_diagnose", type=int, default=5,
                         help="Number of samples to diagnose after training. This will print the predictions for a few samples from the test set."
                         )
+    parser.add_argument("--export_model_to_onnx", action="store_true",
+                        help="When pass, will export model to onnx format. This is useful for deploying the model to production or for inference in other frameworks."
+                        )
+    parser.add_argument("--optimize_graph", action="store_true",
+                        help="When pass, will optimize onnx model graph after exporting to onnx."
+                        )
         
     return parser.parse_args()
 
@@ -292,7 +300,7 @@ def main():
         
         dataset.save_vectorizer(args.vectorizer_file)
     vectorizer = dataset.get_vectorizer()
-
+    
     #%% Use GloVe or randomly initialized embeddings
     if args.use_glove:
         logger.info(f"Using GloVe embeddings from {args.glove_filepath}")
@@ -380,3 +388,33 @@ def main():
     logger.info(f"Training complete. Model state saved to {args.model_state_file}")
     logger.info(f"Train state saved to train_state.json")
 
+    if args.export_model_to_onnx:
+        logger.info("Exporting model to ONNX format")
+        bathc_input = generate_batches(dataset=dataset,batch_size=1)
+        for batch_index, batch_dict in enumerate(bathc_input):  
+            input_ids =  batch_dict['x_data']
+        onnx_model_name = args.model_state_file.replace('.pth', '.onnx')
+        torch.onnx.export(model=model.eval(),#.to("cpu").eval(),
+                        args=input_ids,
+                        f=onnx_model_name,
+                        input_names=['input_ids'],
+                        output_names=["logits"],
+                        dynamic_axes={"input_ids": {0: "batch_size", 1: "seq_len"},
+                                        "logits": {0: "batch_size"}
+                                        },
+                        opset_version=17
+                        )
+        logger.info(f"Model exported to ONNX format at {onnx_model_name}")
+     
+    if args.optimize_graph:
+        if not args.export_model_to_onnx:
+            msg = "Cannot optimize graph without exporting to ONNX first"
+            logger.info(msg)
+            raise ValueError(msg)
+        logger.info("Optimizing the ONNX model graph")
+        
+        onnx_model = load(onnx_model_name)
+        opt_modelpath = os.path.join(os.path.dirname(onnx_model_name), "optimized_model.onnx")
+        optimized_model = optimize(onnx_model)
+        save(optimized_model, opt_modelpath)
+        logger.info(f"Optimized model saved to {opt_modelpath}")

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from review_classifier import logger
 class ReviewClassifier(nn.Module):
     def __init__(self, embedding_size, num_embeddings, num_channels,
                  hidden_dim, num_classes, dropout_p, pretrained_embeddings=None,
@@ -55,6 +55,7 @@ class ReviewClassifier(nn.Module):
         
         # avg and remove extra dimension
         remaining_size = features.size(dim=2)
+        remaining_size = (int(remaining_size))
         features = F.avg_pool1d(input=features, kernel_size=remaining_size).squeeze(dim=2)
         features = F.dropout(input=features, p=self._dropout_p)
         
