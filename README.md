@@ -18,7 +18,7 @@
 
 ---
 
-# Project Description
+## Project Description
 
 This is a Natural Language Processing project for predicting whether 
 a product will be recommended based on product review. A Deep Neural Network model design as a simple Convolutional Neural Network is presented for the task.
