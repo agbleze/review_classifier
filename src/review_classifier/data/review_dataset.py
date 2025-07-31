@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from sklearn.model_selection import train_test_split
 import json
-from ..preprocess.vectorizer import ReviewVectorizer
+from review_classifier.preprocess.vectorizer import ReviewVectorizer
 from typing import Dict
 
 
