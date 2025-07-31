@@ -393,6 +393,12 @@ def main():
         bathc_input = generate_batches(dataset=dataset,batch_size=1)
         for batch_index, batch_dict in enumerate(bathc_input):  
             input_ids =  batch_dict['x_data']
+            logger.info(f"batch_index: {batch_index}")
+            logger.info(f"input_ids: {input_ids}")
+            logger.info(f"len of input id: {len(input_ids[0])}")
+            logger.info(f"exporting onnx with len of input ids: {len(input_ids)}")
+            if batch_index == 0:
+                break
         onnx_model_name = args.model_state_file.replace('.pth', '.onnx')
         torch.onnx.export(model=model.eval(),#.to("cpu").eval(),
                         args=input_ids,
