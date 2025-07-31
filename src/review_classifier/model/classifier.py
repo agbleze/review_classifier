@@ -54,17 +54,18 @@ class ReviewClassifier(nn.Module):
         features = self.convnet(x_embedded)
         
         # avg and remove extra dimension
-        remaining_size = features.size(dim=2)
+        remaining_size = features.size(2)
         remaining_size = (int(remaining_size))
-        features = F.avg_pool1d(input=features, kernel_size=remaining_size).squeeze(dim=2)
+        #features = F.avg_pool1d(input=features, kernel_size=remaining_size).squeeze(dim=2)
+        features = features.mean(dim=2)
         features = F.dropout(input=features, p=self._dropout_p)
         
         # mlp_classifier
         intermediate_vector = F.relu(F.dropout(self.fc1(features), p=self._dropout_p))
         prediction_vector = self.fc2(intermediate_vector)
         
-        if apply_softmax:
-            prediction_vector = F.softmax(prediction_vector, dim=1)
+        #if apply_softmax:
+        #    prediction_vector = F.softmax(prediction_vector, dim=1)
             
         return prediction_vector
      
