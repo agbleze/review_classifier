@@ -28,6 +28,7 @@ jupyter = "^1.1.1"
 myst-nb = {version = "^1.1.2", python = "^3.9"}
 sphinx-autoapi = "^3.3.2"
 sphinx-rtd-theme = "^2.0.0"
+sphinx = "7.4.7"
 
 
 [tool.semantic_release]
